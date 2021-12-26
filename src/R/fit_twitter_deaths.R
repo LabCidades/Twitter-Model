@@ -28,8 +28,7 @@ stan_data <- list(
   new_deaths = new_deaths,
   new_tweets = new_tweets,
   likelihood = 1,
-  beta_regularization = 0.10,
-  model_periodicity = 1
+  beta_regularization = 0.10
 )
 
 fit <- model$sample(data = stan_data,

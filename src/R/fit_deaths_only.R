@@ -21,8 +21,7 @@ stan_data <- list(
   population = population,
   new_deaths = new_deaths,
   likelihood = 1,
-  beta_regularization = 0.10,
-  model_periodicity = 1
+  beta_regularization = 0.10
 )
 
 fit <- model$sample(data = stan_data,

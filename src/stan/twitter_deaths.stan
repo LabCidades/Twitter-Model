@@ -7,7 +7,6 @@ data {
   int new_tweets[no_days];
   int likelihood;
   real beta_regularization;
-  int model_periodicity;
 }
 transformed data {
   int no_weeks = no_days %/% 7 + min(1, no_days % 7);
@@ -44,7 +43,6 @@ parameters {
 transformed parameters {
   vector[no_days] daily_infections = population * unit_dS[:no_days];
   vector[no_days] daily_deaths;
-  vector[no_days+1] registered_daily_deaths = rep_vector(0, no_days+1);
   vector[no_weeks] weekly_deaths;
   vector[no_weeks] weekly_state_I;
   vector[no_days] beta;
@@ -81,11 +79,6 @@ transformed parameters {
       state[1] += daily_infections[i];
       state = transition_matrix * state;
       daily_deaths[i] = state[4] - last_D;
-      registered_daily_deaths[i] += daily_deaths[i];
-      registered_daily_deaths[i:i+1] = [
-        reporting_probability[weekday] * registered_daily_deaths[i],
-        (1-reporting_probability[weekday]) * registered_daily_deaths[i]
-      ]';
       beta[i] = daily_infections[i] * population / (S * state[2]); // S * I
       effective_reproduction_number[i] = daily_infections[i] / state[2] * dI; // I
 
@@ -121,20 +114,14 @@ model {
   omega ~ beta(100, 9803);
   reciprocal_phi_deaths ~ exponential(5);
   reciprocal_phi_tweets ~ exponential(5);
-  tweet_rate ~ beta(1,1);
-  reporting_probability ~ beta(1,1);
+  tweet_rate ~ beta(1,3);
   if(likelihood){
-    if(model_periodicity){
-      new_deaths ~ neg_binomial_2(registered_daily_deaths[:no_days], 1/reciprocal_phi_deaths);
-      new_tweets ~ neg_binomial_2(state_I * tweet_rate, 1/reciprocal_phi_tweets);
-    }else{
-      new_weekly_deaths ~ neg_binomial_2(
-          weekly_deaths, 1/reciprocal_phi_deaths
-      );
-      new_weekly_tweets ~ neg_binomial_2(
-          weekly_state_I * tweet_rate, 1/reciprocal_phi_tweets
-      );
-    }
+    new_weekly_deaths ~ neg_binomial_2(
+        weekly_deaths, 1/reciprocal_phi_deaths
+    );
+    new_weekly_tweets ~ neg_binomial_2(
+        weekly_state_I * tweet_rate, 1/reciprocal_phi_tweets
+    );
   }
 }
 
@@ -143,37 +130,22 @@ generated quantities {
   int pred_weekly_deaths[no_weeks];
   int pred_daily_tweets[no_days];
   int pred_weekly_tweets[no_weeks];
-  vector[no_days] log_lik;
+  vector[no_weeks] log_lik;
 
-  if(model_periodicity){
-    pred_daily_deaths = neg_binomial_2_rng(
-      registered_daily_deaths[:no_days], 1/reciprocal_phi_deaths
+  pred_weekly_deaths = neg_binomial_2_rng(
+      weekly_deaths, 1/reciprocal_phi_deaths
     );
-    pred_daily_tweets = neg_binomial_2_rng(
-      state_I * tweet_rate, 1/reciprocal_phi_tweets
-    );
-    for (i in 1:no_days) {
-      log_lik[i] = neg_binomial_2_lpmf(new_deaths[i] |
-      registered_daily_deaths[i], 1/reciprocal_phi_deaths);
-    }
-    for(week in 1:no_weeks){
-      int start = 1+7*(week-1);
-      int end = min(start+6, no_days);
-      pred_weekly_deaths[week] = sum(pred_daily_deaths[start:end]);
-      pred_weekly_tweets[week] = sum(pred_daily_tweets[start:end]);
-    }
-  }else{
-    pred_weekly_deaths = neg_binomial_2_rng(
-        weekly_deaths, 1/reciprocal_phi_deaths
-    );
-    pred_daily_deaths = neg_binomial_2_rng(
+  pred_daily_deaths = neg_binomial_2_rng(
       daily_deaths, 1/reciprocal_phi_deaths
     );
-    pred_weekly_tweets = neg_binomial_2_rng(
-        weekly_state_I * tweet_rate, 1/reciprocal_phi_tweets
+  pred_weekly_tweets = neg_binomial_2_rng(
+      weekly_state_I * tweet_rate, 1/reciprocal_phi_tweets
     );
-    pred_daily_tweets = neg_binomial_2_rng(
+  pred_daily_tweets = neg_binomial_2_rng(
       state_I * tweet_rate, 1/reciprocal_phi_tweets
     );
+  for (i in 1:no_weeks){
+    log_lik[i] = neg_binomial_2_lpmf(new_weekly_deaths[i] | weekly_deaths[i],
+      1/reciprocal_phi_deaths);
   }
 }
