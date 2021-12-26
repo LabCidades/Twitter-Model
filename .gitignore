@@ -2,4 +2,11 @@
 .DS_Store
 
 # Stan binaries
-*~
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+# Unignore all dirs
+!*/
