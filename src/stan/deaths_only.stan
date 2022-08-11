@@ -115,7 +115,8 @@ generated quantities {
   pred_daily_deaths = neg_binomial_2_rng(daily_deaths,
                                          1 / reciprocal_phi_deaths);
   for (i in 1:weeks_to_predict){
-    log_lik[i] = neg_binomial_2_lpmf(new_weekly_deaths[i] | weekly_deaths[i],
-      1/reciprocal_phi_deaths);
+    log_lik[i] = neg_binomial_2_lpmf(new_weekly_deaths[no_weeks - weeks_to_predict + i] |
+                                         weekly_deaths[no_weeks - weeks_to_predict + i],
+                                     1/reciprocal_phi_deaths);
   }
 }
