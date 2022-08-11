@@ -1,5 +1,6 @@
 library(cmdstanr)
 library(dplyr)
+library(magrittr)
 library(here)
 library(readr)
 
@@ -12,16 +13,22 @@ model <- cmdstan_model(here("src", "stan", "deaths_only.stan"))
 # Real data
 br <- read_csv(here("data", "brazil_nation_2020.csv"))
 
+# Removing last 10 days of the year since it is very unusual
+br %<>%
+  filter(date <= "2020-12-20")
+
 no_days <- br %>% nrow
 population <- br %>% pull(estimated_population_2019) %>% max
 new_deaths <- br %>% pull(new_deaths)
+weeks_to_predict <- 2
 
 stan_data <- list(
   no_days = no_days,
   population = population,
   new_deaths = new_deaths,
   likelihood = 1,
-  beta_regularization = 0.10
+  beta_regularization = 0.10,
+  weeks_to_predict = weeks_to_predict
 )
 
 fit <- model$sample(data = stan_data,

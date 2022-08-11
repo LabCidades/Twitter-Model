@@ -5,6 +5,8 @@ data {
   array[no_days] int new_deaths;
   int likelihood;
   real beta_regularization;
+  // how many weeks to predict from the ODE system with no likelihood
+  int weeks_to_predict;
 }
 transformed data {
   int no_weeks = no_days %/% 7 + min(1, no_days % 7);
@@ -97,21 +99,24 @@ model {
   omega ~ beta(100, 9803);
   reciprocal_phi_deaths ~ exponential(5);
   if (likelihood) {
-    new_weekly_deaths ~ neg_binomial_2(weekly_deaths,
-                                       1 / reciprocal_phi_deaths);
+    new_weekly_deaths[: no_weeks - weeks_to_predict] ~ neg_binomial_2(
+        weekly_deaths[: no_weeks - weeks_to_predict],
+        1 / reciprocal_phi_deaths);
   }
 }
 generated quantities {
   array[no_weeks] int pred_weekly_deaths;
   array[no_days] int pred_daily_deaths;
-  vector[no_weeks] log_lik;
+  // log_lik of only weeks to predict
+  vector[weeks_to_predict] log_lik;
 
   pred_weekly_deaths = neg_binomial_2_rng(weekly_deaths,
                                           1 / reciprocal_phi_deaths);
   pred_daily_deaths = neg_binomial_2_rng(daily_deaths,
                                          1 / reciprocal_phi_deaths);
-  for (i in 1 : no_weeks) {
-    log_lik[i] = neg_binomial_2_lpmf(new_weekly_deaths[i] | weekly_deaths[i], 1
-                                                                    / reciprocal_phi_deaths);
+  for (i in 1:weeks_to_predict){
+    log_lik[i] = neg_binomial_2_lpmf(new_weekly_deaths[no_weeks - weeks_to_predict + i] |
+                                         weekly_deaths[no_weeks - weeks_to_predict + i],
+                                     1/reciprocal_phi_deaths);
   }
 }

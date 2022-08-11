@@ -7,6 +7,8 @@ data {
   array[no_days] int new_tweets;
   int likelihood;
   real beta_regularization;
+  // how many weeks to predict from the ODE system with no likelihood
+  int weeks_to_predict;
 }
 transformed data {
   int no_weeks = no_days %/% 7 + min(1, no_days % 7);
@@ -113,11 +115,11 @@ model {
   omega ~ beta(100, 9803);
   reciprocal_phi_deaths ~ exponential(5);
   reciprocal_phi_tweets ~ exponential(5);
-  tweet_rate ~ beta(1,3);
+  tweet_rate ~ beta(1, 1000);
   if (likelihood){
-    new_weekly_deaths ~ neg_binomial_2(
-        weekly_deaths, 1/reciprocal_phi_deaths
-    );
+    new_weekly_deaths[: no_weeks - weeks_to_predict] ~ neg_binomial_2(
+        weekly_deaths[: no_weeks - weeks_to_predict],
+        1 / reciprocal_phi_deaths);
     new_weekly_tweets ~ neg_binomial_2(
         weekly_state_I * tweet_rate, 1/reciprocal_phi_tweets
     );
@@ -128,7 +130,8 @@ generated quantities {
   array[no_weeks] int pred_weekly_deaths;
   array[no_days] int pred_daily_tweets;
   array[no_weeks] int pred_weekly_tweets;
-  vector[no_weeks] log_lik;
+  // log_lik of only weeks to predict
+  vector[weeks_to_predict] log_lik;
 
   pred_weekly_deaths = neg_binomial_2_rng(
       weekly_deaths, 1/reciprocal_phi_deaths
@@ -142,9 +145,10 @@ generated quantities {
   pred_daily_tweets = neg_binomial_2_rng(
       state_I * tweet_rate, 1/reciprocal_phi_tweets
     );
-  for (i in 1:no_weeks){
-    log_lik[i] = neg_binomial_2_lpmf(new_weekly_deaths[i] | weekly_deaths[i],
-      1/reciprocal_phi_deaths);
+  for (i in 1:weeks_to_predict){
+    log_lik[i] = neg_binomial_2_lpmf(new_weekly_deaths[no_weeks - weeks_to_predict + i] |
+                                         weekly_deaths[no_weeks - weeks_to_predict + i],
+                                     1/reciprocal_phi_deaths);
   }
 }
 
